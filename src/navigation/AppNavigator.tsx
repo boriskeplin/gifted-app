@@ -8,6 +8,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import JournalScreen from '../screens/JournalScreen';
 import LibraryScreen from '../screens/LibraryScreen';
 import { UserState } from '../hooks/useUserStore';
+import Analytics from '../analytics';
 
 const Tab = createBottomTabNavigator();
 
@@ -22,9 +23,10 @@ interface Props {
   user: UserState;
   onMarkComplete: (day: number) => void;
   onAddEntry: (text: string, day: number, done: boolean) => void;
+  onResetGift: () => void;
 }
 
-export default function AppNavigator({ user, onMarkComplete, onAddEntry }: Props) {
+export default function AppNavigator({ user, onMarkComplete, onAddEntry, onResetGift }: Props) {
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -47,6 +49,12 @@ export default function AppNavigator({ user, onMarkComplete, onAddEntry }: Props
           tabBarStyle: styles.tabBar,
           tabBarItemStyle: styles.tabItem,
         })}
+        screenListeners={{
+          tabPress: (e) => {
+            const name = e.target?.split('-')[0] ?? '';
+            if (name === 'Library' && user.gift) Analytics.libraryOpened(user.gift);
+          },
+        }}
       >
         <Tab.Screen name="Today">
           {() => (
@@ -58,7 +66,12 @@ export default function AppNavigator({ user, onMarkComplete, onAddEntry }: Props
           )}
         </Tab.Screen>
         <Tab.Screen name="Gift">
-          {() => <ProfileScreen user={user} />}
+          {() => (
+            <ProfileScreen
+              user={user}
+              onResetGift={onResetGift}
+            />
+          )}
         </Tab.Screen>
         <Tab.Screen name="Journal">
           {() => <JournalScreen user={user} onAddEntry={onAddEntry} />}
