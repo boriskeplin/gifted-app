@@ -7,6 +7,8 @@ import { Colors, Spacing, Radius } from '../theme';
 import { UserState } from '../hooks/useUserStore';
 import { getDayContent, getDayNumber, isContentLocked } from '../data/content';
 import { GIFTS } from '../data/gifts';
+import MilestoneModal from '../components/MilestoneModal';
+import Analytics from '../analytics';
 
 interface Props {
   user: UserState;
@@ -14,11 +16,15 @@ interface Props {
   onAddEntry: (text: string, dayNumber: number, practiceCompleted: boolean) => void;
 }
 
+const MILESTONE_DAYS = [7, 14, 21, 28];
+
 export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) {
-  const [expanded, setExpanded]       = useState<string | null>(null);
-  const [showJournal, setShowJournal] = useState(false);
-  const [journalText, setJournalText] = useState('');
-  const [showPaywall, setShowPaywall] = useState(false);
+  const [expanded, setExpanded]           = useState<string | null>(null);
+  const [showJournal, setShowJournal]     = useState(false);
+  const [journalText, setJournalText]     = useState('');
+  const [showPaywall, setShowPaywall]     = useState(false);
+  const [showMilestone, setShowMilestone] = useState(false);
+  const [pendingDay, setPendingDay]       = useState<number | null>(null);
 
   if (!user.gift) return null;
 
@@ -28,11 +34,23 @@ export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) 
   const isDone  = user.completedDays.includes(dayNum);
   const locked  = isContentLocked(dayNum, !!user.subscribed);
 
+  const handleMarkComplete = () => {
+    onMarkComplete(dayNum);
+    Analytics.dayCompleted(user.gift!, dayNum, user.streak + 1);
+    // Check for milestone
+    const newTotal = user.totalDays + 1;
+    if (MILESTONE_DAYS.includes(newTotal)) {
+      setPendingDay(newTotal);
+      setShowMilestone(true);
+    }
+  };
+
   const submitJournal = () => {
     if (journalText.trim()) {
       onAddEntry(journalText.trim(), dayNum, isDone);
       setJournalText('');
       setShowJournal(false);
+      Analytics.journalEntry(user.gift!, dayNum);
     }
   };
 
@@ -65,6 +83,7 @@ export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) 
             style={styles.paywallBtn}
             onPress={() => {
               setShowPaywall(false);
+              Analytics.upgradeIntent('home_locked');
               Linking.openURL('https://gifted.church/upgrade');
             }}
           >
@@ -90,7 +109,10 @@ export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) 
           <Text style={styles.lockedSub}>
             {`Days 1–7 showed you what your gift is.\nDays 8–28 show you how to walk in it.\n\nThis is where the real activation happens.`}
           </Text>
-          <TouchableOpacity style={styles.btnPrimary} onPress={() => setShowPaywall(true)}>
+          <TouchableOpacity style={styles.btnPrimary} onPress={() => {
+            Analytics.paywallSeen('home_day8');
+            setShowPaywall(true);
+          }}>
             <Text style={styles.btnPrimaryText}>Continue my journey →</Text>
           </TouchableOpacity>
           <Text style={styles.lockedNote}>
@@ -104,6 +126,15 @@ export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) 
   return (
     <SafeAreaView style={styles.safe}>
       <PaywallModal />
+
+      {/* Milestone modal */}
+      <MilestoneModal
+        visible={showMilestone}
+        milestone={pendingDay ?? dayNum}
+        gift={user.gift!}
+        didYouKnow={content.didYouKnow}
+        onClose={() => setShowMilestone(false)}
+      />
 
       {/* Journal modal */}
       <Modal visible={showJournal} animationType="slide" transparent>
@@ -153,6 +184,15 @@ export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) 
             <Text style={[styles.giftBadgeText, { color: gift.color }]}>{gift.name}</Text>
           </View>
 
+          {/* Milestone approaching hint */}
+          {MILESTONE_DAYS.includes(user.totalDays + 1) && !isDone && (
+            <View style={styles.milestoneHint}>
+              <Text style={styles.milestoneHintText}>
+                ✝ Complete today to hit Day {user.totalDays + 1}
+              </Text>
+            </View>
+          )}
+
           {/* Today's Scripture */}
           <View style={styles.scriptureBlock}>
             <Text style={styles.scriptureLabel}>✝ Today's Scripture</Text>
@@ -171,10 +211,9 @@ export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) 
                 <Text style={styles.dykBadge}>DID YOU KNOW</Text>
                 <Text style={styles.dykChevron}>{expanded === 'dyk' ? '▲' : '▼'}</Text>
               </View>
-              {expanded === 'dyk' && (
+              {expanded === 'dyk' ? (
                 <Text style={styles.dykBody}>{content.didYouKnow}</Text>
-              )}
-              {expanded !== 'dyk' && (
+              ) : (
                 <Text style={styles.dykPreview} numberOfLines={1}>
                   {content.didYouKnow?.substring(0, 70)}...
                 </Text>
@@ -202,7 +241,7 @@ export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) 
             <Text style={styles.cardTitle}>Today's Practice</Text>
             <Text style={styles.cardBody}>{content.practice}</Text>
             {!isDone ? (
-              <TouchableOpacity style={styles.completeBtn} onPress={() => onMarkComplete(dayNum)}>
+              <TouchableOpacity style={styles.completeBtn} onPress={handleMarkComplete}>
                 <Text style={styles.completeBtnText}>✓ Mark Complete</Text>
               </TouchableOpacity>
             ) : (
@@ -229,7 +268,6 @@ export default function HomeScreen({ user, onMarkComplete, onAddEntry }: Props) 
           <TouchableOpacity style={styles.journalBtn} onPress={() => setShowJournal(true)}>
             <Text style={styles.journalBtnText}>+ Add reflection</Text>
           </TouchableOpacity>
-
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -250,12 +288,14 @@ const styles = StyleSheet.create({
   giftBadgeEmoji: { fontSize: 14, marginRight: 5 },
   giftBadgeText: { fontSize: 12, fontWeight: '700' },
 
+  milestoneHint: { backgroundColor: `${Colors.gold}20`, borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 6, marginBottom: Spacing.sm, borderWidth: 1, borderColor: `${Colors.gold}40` },
+  milestoneHintText: { fontSize: 12, color: Colors.gold, fontWeight: '700', textAlign: 'center' },
+
   scriptureBlock: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
   scriptureLabel: { fontSize: 10, fontWeight: '700', color: Colors.accent, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
   scriptureText: { fontStyle: 'italic', fontSize: 16, color: Colors.text, lineHeight: 24, marginBottom: 4 },
   scriptureRef: { fontSize: 10, fontWeight: '700', color: Colors.gold, textTransform: 'uppercase', letterSpacing: 0.8 },
 
-  // Did You Know
   dykCard: { backgroundColor: '#FFF8E1', borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1.5, borderColor: Colors.gold },
   dykHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   dykBadge: { fontSize: 9, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase', letterSpacing: 1 },
@@ -281,7 +321,6 @@ const styles = StyleSheet.create({
   journalBtn: { borderWidth: 1.5, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center', borderStyle: 'dashed' },
   journalBtnText: { color: Colors.muted, fontSize: 14, fontWeight: '600' },
 
-  // Locked
   lockedContainer: { flex: 1, padding: Spacing.lg, alignItems: 'center', justifyContent: 'center' },
   giftEmoji: { fontSize: 40, marginBottom: Spacing.sm },
   lockedDay: { fontSize: 13, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
@@ -289,7 +328,6 @@ const styles = StyleSheet.create({
   lockedSub: { fontSize: 14, color: Colors.muted, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xl },
   lockedNote: { fontSize: 12, color: Colors.muted, textAlign: 'center', fontStyle: 'italic', marginTop: Spacing.md, paddingHorizontal: Spacing.md, lineHeight: 18 },
 
-  // Paywall modal
   paywallOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   paywallCard: { backgroundColor: Colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.lg, paddingBottom: 40 },
   paywallCross: { fontSize: 28, textAlign: 'center', marginBottom: 8 },
@@ -304,7 +342,6 @@ const styles = StyleSheet.create({
   paywallClose: { alignItems: 'center', padding: 8 },
   paywallCloseText: { color: Colors.muted, fontSize: 13 },
 
-  // Journal modal
   journalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   journalCard: { backgroundColor: Colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.lg, paddingBottom: 40 },
   journalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 12 },
