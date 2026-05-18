@@ -11,9 +11,11 @@ import { UserState } from '../hooks/useUserStore';
 
 const Tab = createBottomTabNavigator();
 
-const Icon = ({ name, focused }: { name: string; focused: boolean }) => {
-  const icons: Record<string, string> = { Home: '🏠', Profile: '✝', Journal: '📔', Library: '📚' };
-  return <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.45 }}>{icons[name]}</Text>;
+const ICONS: Record<string, string> = {
+  Today:   '✝',
+  Gift:    '🎁',
+  Journal: '📔',
+  Library: '📚',
 };
 
 interface Props {
@@ -28,9 +30,17 @@ export default function AppNavigator({ user, onMarkComplete, onAddEntry }: Props
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
-          tabBarIcon: ({ focused }) => <Icon name={route.name} focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <Text style={{ fontSize: 19, opacity: focused ? 1 : 0.4 }}>
+              {ICONS[route.name]}
+            </Text>
+          ),
           tabBarLabel: ({ focused }) => (
-            <Text style={{ fontSize: 10, fontWeight: '700', color: focused ? Colors.accent : Colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <Text style={{
+              fontSize: 10, fontWeight: '700',
+              color: focused ? Colors.accent : Colors.muted,
+              textTransform: 'uppercase', letterSpacing: 0.5,
+            }}>
               {route.name}
             </Text>
           ),
@@ -38,10 +48,16 @@ export default function AppNavigator({ user, onMarkComplete, onAddEntry }: Props
           tabBarItemStyle: styles.tabItem,
         })}
       >
-        <Tab.Screen name="Home">
-          {() => <HomeScreen user={user} onMarkComplete={onMarkComplete} />}
+        <Tab.Screen name="Today">
+          {() => (
+            <HomeScreen
+              user={user}
+              onMarkComplete={onMarkComplete}
+              onAddEntry={onAddEntry}
+            />
+          )}
         </Tab.Screen>
-        <Tab.Screen name="Profile">
+        <Tab.Screen name="Gift">
           {() => <ProfileScreen user={user} />}
         </Tab.Screen>
         <Tab.Screen name="Journal">
