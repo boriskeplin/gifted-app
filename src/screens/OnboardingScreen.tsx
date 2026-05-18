@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, SafeAreaView } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, TextInput,
+  ScrollView, SafeAreaView, Animated,
+} from 'react-native';
 import { Colors, Typography, Spacing, Radius } from '../theme';
 import { GiftType, GIFTS, ALL_GIFTS } from '../data/gifts';
 
@@ -7,9 +10,8 @@ interface Props {
   onComplete: (name: string, gift: GiftType, scores: Record<string, number>) => void;
 }
 
-type Step = 'welcome' | 'name' | 'quiz' | 'result';
+type Step = 'welcome' | 'conviction' | 'name' | 'quiz' | 'result';
 
-// Simplified onboarding quiz (full quiz lives on web funnel)
 const QUIZ_QUESTIONS = [
   {
     id: 'q1',
@@ -53,11 +55,29 @@ const QUIZ_QUESTIONS = [
   },
 ];
 
+const CONVICTION_LINES = [
+  'Something has been off in your faith life.',
+  'You show up. You serve. You read the Word.',
+  'And something still feels hollow.',
+  '',
+  'Not because you\'re doing it wrong.',
+  'Because you\'re doing everything\n— instead of the one thing\nyou were built for.',
+  '',
+  '1 Corinthians 12:7 —\n"to EACH is given the manifestation\nof the Spirit."',
+  '',
+  'Not to the ordained.\nNot to the specially qualified.\nTo EACH.',
+  '',
+  'Including you.',
+  'You already have a specific gift.\nYou probably don\'t know what it is.',
+  'This changes that.',
+];
+
 export default function OnboardingScreen({ onComplete }: Props) {
-  const [step, setStep] = useState<Step>('welcome');
-  const [name, setName] = useState('');
+  const [step, setStep]     = useState<Step>('welcome');
+  const [name, setName]     = useState('');
+  const [convIdx, setConvIdx] = useState(0);
   const [scores, setScores] = useState<Record<GiftType, number>>({ faith: 0, mercy: 0, prophecy: 0, teaching: 0 });
-  const [qIdx, setQIdx] = useState(0);
+  const [qIdx, setQIdx]     = useState(0);
   const [topGift, setTopGift] = useState<GiftType>('faith');
 
   const handleAnswer = (gift: string) => {
@@ -73,26 +93,65 @@ export default function OnboardingScreen({ onComplete }: Props) {
     }
   };
 
+  const advanceConviction = () => {
+    if (convIdx < CONVICTION_LINES.length - 1) {
+      setConvIdx(convIdx + 1);
+    } else {
+      setStep('name');
+    }
+  };
+
+  // ── Welcome ────────────────────────────────────────────────────────────────
   if (step === 'welcome') {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
           <Text style={styles.cross}>✝</Text>
-          <Text style={styles.welcomeTitle}>Welcome to Gifted</Text>
+          <Text style={styles.welcomeTitle}>Gifted</Text>
           <Text style={styles.welcomeSub}>
-            God placed a specific spiritual gift in you before you were born. This app will help you discover it, develop it, and walk in it — every single day.
+            God gave you a specific spiritual gift before you were born.
           </Text>
-          <TouchableOpacity style={styles.btnPrimary} onPress={() => setStep('name')}>
-            <Text style={styles.btnPrimaryText}>Begin →</Text>
+          <Text style={styles.welcomeBody}>
+            Not a calling. Not a personality type. A specific, supernatural assignment — already operating in you.
+          </Text>
+          <Text style={styles.welcomeConviction}>
+            Most Christians never find out what it is.
+          </Text>
+          <TouchableOpacity style={styles.btnPrimary} onPress={() => setStep('conviction')}>
+            <Text style={styles.btnPrimaryText}>Find mine →</Text>
           </TouchableOpacity>
           <Text style={styles.welcomeVerse}>
-            "Now to each one the manifestation of the Spirit is given for the common good." — 1 Corinthians 12:7
+            "to EACH is given the manifestation of the Spirit for the common good"
+            {'\n'}1 Corinthians 12:7
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  // ── Conviction scroll ──────────────────────────────────────────────────────
+  if (step === 'conviction') {
+    const line = CONVICTION_LINES[convIdx];
+    const isLast = convIdx === CONVICTION_LINES.length - 1;
+    return (
+      <SafeAreaView style={styles.safe}>
+        <TouchableOpacity style={styles.convictionScreen} onPress={advanceConviction} activeOpacity={0.9}>
+          {line === '' ? (
+            <View style={styles.convictionSpacer} />
+          ) : (
+            <Text style={line.includes('Corinthians') || line.includes('including') ? styles.convictionVerse : styles.convictionLine}>
+              {line}
+            </Text>
+          )}
+          <Text style={styles.convictionTap}>
+            {isLast ? 'Begin →' : 'tap to continue'}
+          </Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Name ───────────────────────────────────────────────────────────────────
   if (step === 'name') {
     return (
       <SafeAreaView style={styles.safe}>
@@ -119,9 +178,10 @@ export default function OnboardingScreen({ onComplete }: Props) {
     );
   }
 
+  // ── Quiz ───────────────────────────────────────────────────────────────────
   if (step === 'quiz') {
-    const q = QUIZ_QUESTIONS[qIdx];
-    const progress = (qIdx / QUIZ_QUESTIONS.length) * 100;
+    const q        = QUIZ_QUESTIONS[qIdx];
+    const progress = ((qIdx) / QUIZ_QUESTIONS.length) * 100;
     return (
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.quizContainer}>
@@ -142,25 +202,66 @@ export default function OnboardingScreen({ onComplete }: Props) {
     );
   }
 
-  // Result screen
+  // ── Result ─────────────────────────────────────────────────────────────────
   const gift = GIFTS[topGift];
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.resultContainer}>
-        <Text style={styles.resultBadge}>✝ Your Gift</Text>
-        <Text style={[styles.giftName, { color: gift.color }]}>{gift.name}</Text>
-        <Text style={styles.giftTagline}>{gift.tagline}</Text>
+      <ScrollView contentContainerStyle={styles.resultContainer} showsVerticalScrollIndicator={false}>
+
+        {/* The reveal */}
+        <View style={[styles.revealHeader, { backgroundColor: `${gift.color}12`, borderColor: `${gift.color}30` }]}>
+          <Text style={styles.revealEyebrow}>✝ Your Gift Has Always Been</Text>
+          <Text style={[styles.revealGiftName, { color: gift.color }]}>{gift.name}</Text>
+          <Text style={styles.revealTagline}>{gift.tagline}</Text>
+        </View>
+
+        {/* Why nothing worked */}
+        <View style={styles.revelationBlock}>
+          <Text style={styles.revelationTitle}>This explains a lot.</Text>
+          <Text style={styles.revelationBody}>
+            {`The hollow feeling after you serve.\nThe frustration when people don't respond the way you expected.\nThe gap between how hard you try and how full you feel.\n\nIt wasn't your fault. You weren't doing it wrong.\nYou were doing the right things with the wrong gift.\n\nNow you know what you're actually built for.`}
+          </Text>
+        </View>
+
+        {/* Scripture */}
         <View style={styles.verseBlock}>
           <Text style={styles.verseText}>"{gift.verse}"</Text>
           <Text style={styles.verseRef}>{gift.verseRef}</Text>
         </View>
-        <Text style={styles.giftDesc}>{gift.description}</Text>
+
+        {/* Gift description */}
+        <View style={styles.giftDescBlock}>
+          <Text style={styles.giftDescTitle}>What this means for you</Text>
+          <Text style={styles.giftDescBody}>{gift.description}</Text>
+        </View>
+
+        {/* Shadow side — conviction */}
+        <View style={styles.shadowBlock}>
+          <Text style={styles.shadowTitle}>Why it's felt off</Text>
+          <Text style={styles.shadowBody}>{gift.shadowSide}</Text>
+        </View>
+
+        {/* Romans 11:29 anchor */}
+        <View style={styles.irrevocableBlock}>
+          <Text style={styles.irrevocableText}>
+            "The gifts and the calling of God are irrevocable."
+          </Text>
+          <Text style={styles.irrevocableRef}>Romans 11:29</Text>
+          <Text style={styles.irrevocableNote}>
+            God placed this in you before you were born. He has never once reconsidered.
+          </Text>
+        </View>
+
         <TouchableOpacity
-          style={styles.btnPrimary}
-          onPress={() => onComplete(name.trim(), topGift, scores)}
+          style={[styles.btnPrimary, { marginTop: Spacing.lg }]}
+          onPress={() => onComplete(name.trim() || 'Friend', topGift, scores)}
         >
-          <Text style={styles.btnPrimaryText}>Start My Journey →</Text>
+          <Text style={styles.btnPrimaryText}>Start walking in it →</Text>
         </TouchableOpacity>
+
+        <Text style={styles.resultNote}>
+          28-day activation plan — one day at a time.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -169,10 +270,23 @@ export default function OnboardingScreen({ onComplete }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
-  cross: { fontSize: 52, color: Colors.red, marginBottom: Spacing.md },
-  welcomeTitle: { ...Typography.h1, textAlign: 'center', marginBottom: Spacing.sm },
-  welcomeSub: { ...Typography.body, textAlign: 'center', marginBottom: Spacing.xl, maxWidth: 320 },
-  welcomeVerse: { fontFamily: 'serif', fontStyle: 'italic', fontSize: 12, color: Colors.muted, textAlign: 'center', marginTop: Spacing.lg, paddingHorizontal: Spacing.md },
+  cross: { fontSize: 48, color: Colors.red, marginBottom: Spacing.md },
+
+  // Welcome
+  welcomeTitle: { fontSize: 38, fontWeight: '900', color: Colors.text, letterSpacing: -1, marginBottom: Spacing.sm, textAlign: 'center' },
+  welcomeSub: { fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center', marginBottom: Spacing.sm, lineHeight: 28 },
+  welcomeBody: { fontSize: 15, color: Colors.muted, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.sm, paddingHorizontal: Spacing.sm },
+  welcomeConviction: { fontSize: 16, fontWeight: '700', color: Colors.accent, textAlign: 'center', marginBottom: Spacing.xl },
+  welcomeVerse: { fontFamily: 'serif', fontStyle: 'italic', fontSize: 12, color: Colors.muted, textAlign: 'center', marginTop: Spacing.lg, paddingHorizontal: Spacing.md, lineHeight: 18 },
+
+  // Conviction
+  convictionScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl, backgroundColor: Colors.bg },
+  convictionLine: { fontSize: 24, fontWeight: '700', color: Colors.text, textAlign: 'center', lineHeight: 34, marginBottom: Spacing.lg },
+  convictionVerse: { fontSize: 18, fontStyle: 'italic', color: Colors.accent, textAlign: 'center', lineHeight: 28, marginBottom: Spacing.lg, paddingHorizontal: Spacing.md },
+  convictionSpacer: { height: Spacing.xl },
+  convictionTap: { position: 'absolute', bottom: 60, fontSize: 13, color: Colors.muted, letterSpacing: 0.5 },
+
+  // Name
   h1: { ...Typography.h1, textAlign: 'center', marginBottom: Spacing.sm },
   sub: { ...Typography.body, textAlign: 'center', marginBottom: Spacing.lg },
   input: {
@@ -180,12 +294,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#D4C498', borderRadius: Radius.md,
     padding: Spacing.md, fontSize: 18, color: Colors.text, marginBottom: Spacing.md,
   },
-  btnPrimary: {
-    width: '100%', backgroundColor: Colors.accent, borderRadius: Radius.md,
-    padding: Spacing.md, alignItems: 'center', marginBottom: Spacing.sm,
-  },
-  btnDisabled: { opacity: 0.4 },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  // Quiz
   quizContainer: { padding: Spacing.lg },
   progressWrap: { marginBottom: Spacing.lg },
   progressTrack: { height: 4, backgroundColor: '#E8DFC8', borderRadius: 2, marginBottom: 6, overflow: 'hidden' },
@@ -197,20 +307,47 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm,
   },
   answerText: { fontSize: 15, color: Colors.text, lineHeight: 22 },
-  resultContainer: { padding: Spacing.lg, alignItems: 'center' },
-  resultBadge: {
-    backgroundColor: 'rgba(27,75,138,0.1)', color: Colors.accent,
-    borderRadius: Radius.full, paddingHorizontal: 14, paddingVertical: 5,
-    fontSize: 12, fontWeight: '700', marginBottom: Spacing.md,
+
+  // Result
+  resultContainer: { padding: Spacing.md, paddingBottom: 50 },
+  revealHeader: {
+    borderRadius: Radius.lg, padding: Spacing.lg, alignItems: 'center',
+    borderWidth: 1.5, marginBottom: Spacing.md,
   },
-  giftName: { fontSize: 30, fontWeight: '800', marginBottom: 6, letterSpacing: -0.5, textAlign: 'center' },
-  giftTagline: { fontSize: 16, color: Colors.muted, textAlign: 'center', marginBottom: Spacing.lg },
+  revealEyebrow: { fontSize: 11, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+  revealGiftName: { fontSize: 32, fontWeight: '900', textAlign: 'center', marginBottom: 8, letterSpacing: -0.5 },
+  revealTagline: { fontSize: 15, color: Colors.muted, textAlign: 'center', fontStyle: 'italic', lineHeight: 22 },
+
+  revelationBlock: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border },
+  revelationTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 10 },
+  revelationBody: { fontSize: 14, color: Colors.muted, lineHeight: 22 },
+
   verseBlock: {
     backgroundColor: Colors.btn, borderLeftWidth: 3, borderLeftColor: Colors.gold,
-    padding: Spacing.md, marginBottom: Spacing.lg, width: '100%',
+    padding: Spacing.md, marginBottom: Spacing.md,
     borderTopRightRadius: Radius.md, borderBottomRightRadius: Radius.md,
   },
   verseText: { fontStyle: 'italic', fontSize: 14, color: Colors.text, marginBottom: 4 },
   verseRef: { fontSize: 10, fontWeight: '700', color: Colors.gold, textTransform: 'uppercase', letterSpacing: 0.8 },
-  giftDesc: { ...Typography.body, textAlign: 'center', marginBottom: Spacing.xl },
+
+  giftDescBlock: { marginBottom: Spacing.md },
+  giftDescTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  giftDescBody: { fontSize: 14, color: Colors.muted, lineHeight: 22 },
+
+  shadowBlock: { backgroundColor: '#FFF5F5', borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.md, borderWidth: 1, borderColor: '#F5D5D5' },
+  shadowTitle: { fontSize: 14, fontWeight: '700', color: '#8B1A1A', marginBottom: 6 },
+  shadowBody: { fontSize: 13, color: '#666', lineHeight: 20 },
+
+  irrevocableBlock: { backgroundColor: Colors.accent, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.md, alignItems: 'center' },
+  irrevocableText: { fontStyle: 'italic', fontSize: 15, color: '#fff', textAlign: 'center', marginBottom: 4, lineHeight: 22 },
+  irrevocableRef: { fontSize: 10, fontWeight: '700', color: Colors.gold, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
+  irrevocableNote: { fontSize: 12, color: 'rgba(255,255,255,0.8)', textAlign: 'center', lineHeight: 18 },
+
+  btnPrimary: {
+    width: '100%', backgroundColor: Colors.accent, borderRadius: Radius.md,
+    padding: Spacing.md, alignItems: 'center', marginBottom: Spacing.sm,
+  },
+  btnDisabled: { opacity: 0.4 },
+  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  resultNote: { fontSize: 12, color: Colors.muted, textAlign: 'center' },
 });
