@@ -2,12 +2,16 @@ import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { GiftType } from './src/data/gifts';
 import { useUserStore } from './src/hooks/useUserStore';
+import { useNotifications } from './src/hooks/useNotifications';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import AppNavigator from './src/navigation/AppNavigator';
 import { Colors } from './src/theme';
 
 export default function App() {
   const { user, loaded, save, markDayComplete, addJournalEntry } = useUserStore();
+
+  // Schedule daily 8am reminder once user is onboarded
+  useNotifications(!!user.gift);
 
   if (!loaded) {
     return (
