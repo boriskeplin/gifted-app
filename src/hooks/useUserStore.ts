@@ -39,7 +39,7 @@ const DEFAULT_STATE: UserState = {
 const KEY = '@gifted_user';
 
 export function useUserStore() {
-  const [user, setUser] = useState<UserState>(DEFAULT_STATE);
+  const [user, setUser]     = useState<UserState>(DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -52,31 +52,30 @@ export function useUserStore() {
     });
   }, []);
 
+  const persist = (next: UserState) => {
+    AsyncStorage.setItem(KEY, JSON.stringify(next));
+    return next;
+  };
+
   const save = useCallback((update: Partial<UserState>) => {
-    setUser(prev => {
-      const next = { ...prev, ...update };
-      AsyncStorage.setItem(KEY, JSON.stringify(next));
-      return next;
-    });
+    setUser(prev => persist({ ...prev, ...update }));
   }, []);
 
   const markDayComplete = useCallback((dayNum: number) => {
     setUser(prev => {
-      const today = new Date().toISOString().split('T')[0];
+      const today    = new Date().toISOString().split('T')[0];
       const wasToday = prev.lastActiveDate === today;
       const newStreak = wasToday ? prev.streak : prev.streak + 1;
       const completedDays = prev.completedDays.includes(dayNum)
         ? prev.completedDays
         : [...prev.completedDays, dayNum];
-      const next = {
+      return persist({
         ...prev,
         streak: newStreak,
         lastActiveDate: today,
         totalDays: completedDays.length,
         completedDays,
-      };
-      AsyncStorage.setItem(KEY, JSON.stringify(next));
-      return next;
+      });
     });
   }, []);
 
@@ -88,11 +87,22 @@ export function useUserStore() {
       dayNumber,
       practiceCompleted,
     };
-    setUser(prev => {
-      const next = { ...prev, journalEntries: [entry, ...prev.journalEntries] };
-      AsyncStorage.setItem(KEY, JSON.stringify(next));
-      return next;
-    });
+    setUser(prev => persist({ ...prev, journalEntries: [entry, ...prev.journalEntries] }));
+  }, []);
+
+  // Full clear — used for gift reset (keeps journal)
+  const resetGift = useCallback(() => {
+    setUser(prev => persist({
+      ...prev,
+      gift: null,
+      giftScores: {},
+      startDate: new Date().toISOString().split('T')[0],
+      streak: 0,
+      totalDays: 0,
+      completedDays: [],
+      lastActiveDate: '',
+      // journalEntries preserved
+    }));
   }, []);
 
   const clearUser = useCallback(() => {
@@ -100,5 +110,5 @@ export function useUserStore() {
     setUser(DEFAULT_STATE);
   }, []);
 
-  return { user, loaded, save, markDayComplete, addJournalEntry, clearUser };
+  return { user, loaded, save, markDayComplete, addJournalEntry, resetGift, clearUser };
 }
